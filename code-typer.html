@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CODE TYPER</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0f;
+    --surface: #141418;
+    --surface2: #1c1c22;
+    --border: #2a2a35;
+    --accent: #00ff88;
+    --accent2: #00ccff;
+    --danger: #ff4060;
+    --warn: #ffaa00;
+    --text: #e8e8f0;
+    --muted: #555568;
+    --dim: #333344;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-display: 'Syne', sans-serif;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    overflow-x: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,255,136,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(0,204,255,0.04) 0%, transparent 50%);
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  .screen { display: none; width: 100%; max-width: 860px; }
+  .screen.active { display: block; animation: fadeIn 0.3s ease; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.15)} 100%{transform:scale(1)} }
+
+  /* ── HEADER ── */
+  .logo {
+    font-family: var(--font-display);
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+  }
+  .logo span { color: var(--accent); }
+  .tagline { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 2.5rem; }
+
+  /* ── MENU ── */
+  .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+
+  .section-title {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 0.6rem;
+  }
+
+  .option-group { display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .option-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    display: flex; align-items: center; gap: 0.6rem;
+  }
+  .option-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,255,136,0.04); }
+  .option-btn.selected { border-color: var(--accent); color: var(--accent); background: rgba(0,255,136,0.08); }
+  .option-btn .dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid currentColor; flex-shrink: 0; }
+  .option-btn.selected .dot { background: currentColor; }
+  .option-btn .badge { margin-left: auto; font-size: 0.65rem; color: var(--muted); }
+
+  .start-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 0.9rem;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: all 0.15s;
+  }
+  .start-btn:hover { background: #00ffaa; transform: translateY(-1px); box-shadow: 0 0 24px rgba(0,255,136,0.3); }
+  .start-btn:active { transform: translateY(0); }
+
+  .leaderboard-preview {
+    margin-top: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    background: var(--surface);
+  }
+  .lb-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.35rem 0; font-size: 0.78rem; border-bottom: 1px solid var(--dim); }
+  .lb-row:last-child { border-bottom: none; }
+  .lb-rank { color: var(--muted); width: 1.5rem; }
+  .lb-name { flex: 1; color: var(--text); }
+  .lb-score { color: var(--accent); font-weight: 500; }
+  .lb-lang { color: var(--muted); font-size: 0.65rem; }
+
+  /* ── GAME ── */
+  .game-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
+
+  .stat-pill {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .stat-pill .val { color: var(--text); font-weight: 500; font-size: 0.85rem; }
+  .stat-pill.accent .val { color: var(--accent); }
+  .stat-pill.danger .val { color: var(--danger); }
+
+  .timer-wrap { margin-left: auto; position: relative; }
+  .timer-ring { transform: rotate(-90deg); }
+  .timer-ring circle { transition: stroke-dashoffset 0.9s linear; }
+  .timer-num {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; font-weight: 500;
+  }
+
+  .snippet-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    position: relative;
+    overflow: hidden;
+    min-height: 120px;
+  }
+  .snippet-box::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    opacity: 0.6;
+  }
+  .snippet-lang-tag {
+    position: absolute; top: 0.75rem; right: 1rem;
+    font-size: 0.6rem; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase;
+  }
+
+  .snippet-text {
+    font-family: var(--font-mono);
+    font-size: 1.05rem;
+    line-height: 1.9;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .snippet-text .ch { position: relative; }
+  .snippet-text .ch.correct { color: var(--accent); }
+  .snippet-text .ch.wrong { color: var(--danger); background: rgba(255,64,96,0.15); border-radius: 2px; }
+  .snippet-text .ch.pending { color: var(--muted); }
+  .snippet-text .ch.cursor::after {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+    background: var(--accent);
+    animation: blink 0.9s infinite;
+    border-radius: 1px;
+  }
+  .snippet-text .ch.newline { display: inline; }
+
+  #hidden-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 1px; height: 1px;
+  }
+
+  .progress-bar {
+    height: 3px;
+    background: var(--dim);
+    border-radius: 2px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    transition: width 0.1s;
+  }
+
+  .hint-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.7rem; color: var(--muted); margin-bottom: 1.5rem; }
+
+  .skip-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    padding: 0.25rem 0.6rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .skip-btn:hover { border-color: var(--warn); color: var(--warn); }
+
+  .quit-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    padding: 0.25rem 0.6rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .quit-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+  .shake { animation: shake 0.3s ease; }
+  .pop { animation: pop 0.2s ease; }
+
+  /* ── RESULTS ── */
+  .results-header { text-align: center; margin-bottom: 2rem; }
+  .results-header .grade {
+    font-family: var(--font-display);
+    font-size: 5rem;
+    font-weight: 800;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.25rem;
+  }
+  .results-header .grade-label { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.2em; text-transform: uppercase; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+  }
+  .stat-card .s-val { font-size: 1.6rem; font-weight: 500; color: var(--accent); display: block; line-height: 1.2; }
+  .stat-card .s-label { font-size: 0.65rem; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; margin-top: 0.3rem; }
+
+  .missed-chars {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .missed-list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+  .missed-char {
+    background: rgba(255,64,96,0.1);
+    border: 1px solid rgba(255,64,96,0.3);
+    border-radius: 4px;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.8rem;
+    color: var(--danger);
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .missed-char .mc-count { font-size: 0.65rem; color: rgba(255,64,96,0.6); }
+
+  .result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .result-btn {
+    padding: 0.75rem;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid var(--border);
+  }
+  .result-btn.primary { background: var(--accent); color: #000; border-color: var(--accent); }
+  .result-btn.primary:hover { background: #00ffaa; box-shadow: 0 0 20px rgba(0,255,136,0.25); }
+  .result-btn.secondary { background: var(--surface); color: var(--text); }
+  .result-btn.secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .wpm-chart { margin-bottom: 1.5rem; }
+  .chart-bar-wrap { display: flex; align-items: flex-end; gap: 3px; height: 60px; margin-top: 0.6rem; }
+  .chart-bar {
+    flex: 1;
+    border-radius: 2px 2px 0 0;
+    background: linear-gradient(to top, var(--accent), var(--accent2));
+    opacity: 0.7;
+    transition: opacity 0.15s;
+    min-height: 2px;
+  }
+  .chart-bar:hover { opacity: 1; }
+
+  @media (max-width: 600px) {
+    .menu-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .logo { font-size: 2rem; }
+    .snippet-text { font-size: 0.88rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ MENU SCREEN ══ -->
+<div id="screen-menu" class="screen active">
+  <div style="text-align:center;">
+    <div class="logo">CODE<span>TYPER</span></div>
+    <div class="tagline">test your coding speed &amp; accuracy</div>
+  </div>
+
+  <div class="menu-grid">
+    <div>
+      <div class="section-title">Language</div>
+      <div class="option-group" id="lang-group">
+        <button class="option-btn selected" data-val="js" onclick="selectOpt('lang',this)">
+          <span class="dot"></span> JavaScript <span class="badge">ES6+</span>
+        </button>
+        <button class="option-btn" data-val="py" onclick="selectOpt('lang',this)">
+          <span class="dot"></span> Python <span class="badge">3.x</span>
+        </button>
+        <button class="option-btn" data-val="css" onclick="selectOpt('lang',this)">
+          <span class="dot"></span> CSS <span class="badge">modern</span>
+        </button>
+        <button class="option-btn" data-val="bash" onclick="selectOpt('lang',this)">
+          <span class="dot"></span> Bash <span class="badge">sh</span>
+        </button>
+      </div>
+    </div>
+    <div>
+      <div class="section-title">Mode</div>
+      <div class="option-group" id="mode-group">
+        <button class="option-btn selected" data-val="30" onclick="selectOpt('mode',this)">
+          <span class="dot"></span> 30 seconds <span class="badge">quick</span>
+        </button>
+        <button class="option-btn" data-val="60" onclick="selectOpt('mode',this)">
+          <span class="dot"></span> 60 seconds <span class="badge">standard</span>
+        </button>
+        <button class="option-btn" data-val="90" onclick="selectOpt('mode',this)">
+          <span class="dot"></span> 90 seconds <span class="badge">marathon</span>
+        </button>
+      </div>
+      <div style="margin-top:1rem;">
+        <div class="section-title">Difficulty</div>
+        <div class="option-group" id="diff-group">
+          <button class="option-btn selected" data-val="easy" onclick="selectOpt('diff',this)">
+            <span class="dot"></span> Easy <span class="badge">short snippets</span>
+          </button>
+          <button class="option-btn" data-val="medium" onclick="selectOpt('diff',this)">
+            <span class="dot"></span> Medium <span class="badge">functions</span>
+          </button>
+          <button class="option-btn" data-val="hard" onclick="selectOpt('diff',this)">
+            <span class="dot"></span> Hard <span class="badge">full blocks</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="start-btn" onclick="startGame()">▶ START TYPING</button>
+
+  <div class="leaderboard-preview">
+    <div class="section-title">Local Leaderboard</div>
+    <div id="lb-list"><div style="color:var(--muted);font-size:0.78rem;">No scores yet. Be the first!</div></div>
+  </div>
+</div>
+
+<!-- ══ GAME SCREEN ══ -->
+<div id="screen-game" class="screen">
+  <div class="game-header">
+    <div class="stat-pill accent">
+      <span>WPM</span><span class="val" id="stat-wpm">0</span>
+    </div>
+    <div class="stat-pill">
+      <span>ACC</span><span class="val" id="stat-acc">100%</span>
+    </div>
+    <div class="stat-pill">
+      <span>CPM</span><span class="val" id="stat-cpm">0</span>
+    </div>
+    <div class="stat-pill">
+      <span>#</span><span class="val" id="stat-snip">0</span>
+    </div>
+    <div class="timer-wrap">
+      <svg width="52" height="52" class="timer-ring">
+        <circle cx="26" cy="26" r="22" fill="none" stroke="var(--dim)" stroke-width="3"/>
+        <circle id="timer-arc" cx="26" cy="26" r="22" fill="none" stroke="var(--accent)" stroke-width="3"
+          stroke-dasharray="138.2" stroke-dashoffset="0" stroke-linecap="round"/>
+      </svg>
+      <div class="timer-num" id="stat-time">30</div>
+    </div>
+  </div>
+
+  <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+
+  <div class="snippet-box" id="snippet-box" onclick="focusInput()">
+    <div class="snippet-lang-tag" id="snip-lang-tag">js</div>
+    <div class="snippet-text" id="snippet-display"></div>
+  </div>
+
+  <input id="hidden-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+  <div class="hint-row">
+    <span>click the box or start typing</span>
+    <div style="display:flex;gap:0.5rem;">
+      <button class="skip-btn" onclick="skipSnippet()">skip ⇥</button>
+      <button class="quit-btn" onclick="endGame()">quit ✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RESULTS SCREEN ══ -->
+<div id="screen-results" class="screen">
+  <div class="results-header">
+    <div class="grade" id="res-grade">A+</div>
+    <div class="grade-label" id="res-label">Code Wizard</div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card"><span class="s-val" id="res-wpm">0</span><div class="s-label">WPM</div></div>
+    <div class="stat-card"><span class="s-val" id="res-acc">0%</span><div class="s-label">Accuracy</div></div>
+    <div class="stat-card"><span class="s-val" id="res-cpm">0</span><div class="s-label">CPM</div></div>
+    <div class="stat-card"><span class="s-val" id="res-snips">0</span><div class="s-label">Snippets</div></div>
+  </div>
+
+  <div class="wpm-chart">
+    <div class="section-title">WPM over time</div>
+    <div class="chart-bar-wrap" id="wpm-chart-bars"></div>
+  </div>
+
+  <div class="missed-chars" id="missed-section">
+    <div class="section-title">Trouble characters</div>
+    <div class="missed-list" id="missed-list"><span style="color:var(--muted);font-size:0.78rem;">Perfect! No mistakes.</span></div>
+  </div>
+
+  <div class="result-actions">
+    <button class="result-btn primary" onclick="retryGame()">↺ Retry same settings</button>
+    <button class="result-btn secondary" onclick="showMenu()">← Back to menu</button>
+  </div>
+</div>
+
+<script>
+// All snippets stored as plain strings — no template literals, no modern syntax in data
+var SNIPPETS = {
+  js: {
+    easy: [
+      "const add = (a, b) => a + b;",
+      "const arr = [1, 2, 3, 4, 5];",
+      "const obj = { x: 10, y: 20 };",
+      "let total = arr.reduce((s, n) => s + n, 0);",
+      "const doubled = arr.map(n => n * 2);",
+      "const evens = arr.filter(n => n % 2 === 0);",
+      "console.log(\"Hello, World!\");",
+      "const max = Math.max(...arr);",
+      "const keys = Object.keys(obj);",
+      "const clone = Object.assign({}, obj, { z: 30 });",
+      "const str = arr.join(', ');",
+      "const found = arr.find(n => n > 3);"
+    ],
+    medium: [
+      "function debounce(fn, delay) {\n  var timer;\n  return function() {\n    var args = arguments;\n    clearTimeout(timer);\n    timer = setTimeout(function() {\n      fn.apply(this, args);\n    }, delay);\n  };\n}",
+      "var fetchData = function(url) {\n  return fetch(url)\n    .then(function(res) {\n      if (!res.ok) throw new Error(res.status);\n      return res.json();\n    });\n};",
+      "function memoize(fn) {\n  var cache = {};\n  return function() {\n    var key = JSON.stringify(arguments);\n    if (cache[key] !== undefined) return cache[key];\n    cache[key] = fn.apply(this, arguments);\n    return cache[key];\n  };\n}",
+      "function EventEmitter() {\n  this.events = {};\n}\nEventEmitter.prototype.on = function(evt, fn) {\n  if (!this.events[evt]) this.events[evt] = [];\n  this.events[evt].push(fn);\n};\nEventEmitter.prototype.emit = function(evt) {\n  var fns = this.events[evt] || [];\n  fns.forEach(function(fn) { fn(); });\n};",
+      "function groupBy(arr, key) {\n  return arr.reduce(function(acc, item) {\n    var k = item[key];\n    if (!acc[k]) acc[k] = [];\n    acc[k].push(item);\n    return acc;\n  }, {});\n}",
+      "function deepClone(obj) {\n  if (obj === null || typeof obj !== 'object') return obj;\n  if (Array.isArray(obj)) return obj.map(deepClone);\n  var out = {};\n  Object.keys(obj).forEach(function(k) {\n    out[k] = deepClone(obj[k]);\n  });\n  return out;\n}"
+    ],
+    hard: [
+      "function LRUCache(capacity) {\n  this.cap = capacity;\n  this.cache = {};\n  this.keys = [];\n}\nLRUCache.prototype.get = function(key) {\n  if (!this.cache.hasOwnProperty(key)) return -1;\n  this.keys.splice(this.keys.indexOf(key), 1);\n  this.keys.push(key);\n  return this.cache[key];\n};\nLRUCache.prototype.put = function(key, val) {\n  if (this.cache.hasOwnProperty(key)) {\n    this.keys.splice(this.keys.indexOf(key), 1);\n  } else if (this.keys.length >= this.cap) {\n    delete this.cache[this.keys.shift()];\n  }\n  this.keys.push(key);\n  this.cache[key] = val;\n};",
+      "function quickSort(arr) {\n  if (arr.length <= 1) return arr;\n  var pivot = arr[Math.floor(arr.length / 2)];\n  var left = arr.filter(function(x) { return x < pivot; });\n  var mid = arr.filter(function(x) { return x === pivot; });\n  var right = arr.filter(function(x) { return x > pivot; });\n  return quickSort(left).concat(mid, quickSort(right));\n}",
+      "function mergeSort(arr) {\n  if (arr.length <= 1) return arr;\n  var mid = Math.floor(arr.length / 2);\n  var left = mergeSort(arr.slice(0, mid));\n  var right = mergeSort(arr.slice(mid));\n  var result = [];\n  var i = 0, j = 0;\n  while (i < left.length && j < right.length) {\n    if (left[i] <= right[j]) result.push(left[i++]);\n    else result.push(right[j++]);\n  }\n  return result.concat(left.slice(i), right.slice(j));\n}"
+    ]
+  },
+  py: {
+    easy: [
+      "def add(a, b):\n    return a + b",
+      "nums = [1, 2, 3, 4, 5]",
+      "squares = [x**2 for x in nums]",
+      "evens = [x for x in nums if x % 2 == 0]",
+      "total = sum(nums)",
+      "d = {\"x\": 10, \"y\": 20}",
+      "keys = list(d.keys())",
+      "print(\"Hello, World!\")",
+      "max_val = max(nums)",
+      "pairs = list(zip(nums, squares))"
+    ],
+    medium: [
+      "def flatten(lst):\n    result = []\n    for item in lst:\n        if isinstance(item, list):\n            result.extend(flatten(item))\n        else:\n            result.append(item)\n    return result",
+      "def binary_search(arr, target):\n    lo, hi = 0, len(arr) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid - 1\n    return -1",
+      "class Stack:\n    def __init__(self):\n        self._data = []\n    def push(self, item):\n        self._data.append(item)\n    def pop(self):\n        return self._data.pop()\n    def peek(self):\n        return self._data[-1]\n    def __len__(self):\n        return len(self._data)",
+      "def memoize(fn):\n    cache = {}\n    def wrapper(*args):\n        if args not in cache:\n            cache[args] = fn(*args)\n        return cache[args]\n    return wrapper"
+    ],
+    hard: [
+      "import heapq\ndef dijkstra(graph, start):\n    dist = {node: float('inf') for node in graph}\n    dist[start] = 0\n    heap = [(0, start)]\n    while heap:\n        cost, u = heapq.heappop(heap)\n        if cost > dist[u]:\n            continue\n        for v, w in graph[u]:\n            if dist[u] + w < dist[v]:\n                dist[v] = dist[u] + w\n                heapq.heappush(heap, (dist[v], v))\n    return dist",
+      "def merge_sort(arr):\n    if len(arr) <= 1:\n        return arr\n    mid = len(arr) // 2\n    left = merge_sort(arr[:mid])\n    right = merge_sort(arr[mid:])\n    result = []\n    i = j = 0\n    while i < len(left) and j < len(right):\n        if left[i] <= right[j]:\n            result.append(left[i])\n            i += 1\n        else:\n            result.append(right[j])\n            j += 1\n    return result + left[i:] + right[j:]"
+    ]
+  },
+  css: {
+    easy: [
+      ".btn {\n  padding: 0.5rem 1rem;\n  border-radius: 4px;\n  cursor: pointer;\n}",
+      "* {\n  box-sizing: border-box;\n  margin: 0;\n  padding: 0;\n}",
+      ".flex-center {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}",
+      ".card {\n  background: white;\n  border-radius: 8px;\n  box-shadow: 0 2px 8px rgba(0,0,0,0.1);\n  padding: 1.5rem;\n}",
+      "body {\n  font-family: system-ui, sans-serif;\n  line-height: 1.6;\n  color: #1f2937;\n}",
+      "a {\n  color: inherit;\n  text-decoration: none;\n}\na:hover {\n  text-decoration: underline;\n}"
+    ],
+    medium: [
+      ".grid {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));\n  gap: 1.5rem;\n  padding: 2rem;\n}",
+      "@keyframes fadeIn {\n  from {\n    opacity: 0;\n    transform: translateY(12px);\n  }\n  to {\n    opacity: 1;\n    transform: translateY(0);\n  }\n}",
+      ".tooltip {\n  position: relative;\n}\n.tooltip::after {\n  content: attr(data-tip);\n  position: absolute;\n  bottom: calc(100% + 6px);\n  left: 50%;\n  transform: translateX(-50%);\n  background: #111;\n  color: #fff;\n  padding: 4px 10px;\n  border-radius: 4px;\n  white-space: nowrap;\n  opacity: 0;\n  transition: opacity 0.2s;\n}\n.tooltip:hover::after {\n  opacity: 1;\n}",
+      ".hero {\n  background: linear-gradient(\n    135deg,\n    hsl(220, 90%, 56%) 0%,\n    hsl(270, 80%, 60%) 100%\n  );\n  min-height: 100vh;\n  display: grid;\n  place-items: center;\n}"
+    ],
+    hard: [
+      ".card {\n  container-type: inline-size;\n}\n@container (min-width: 600px) {\n  .card-inner {\n    display: grid;\n    grid-template-columns: 1fr 2fr;\n    gap: 2rem;\n  }\n}",
+      "@layer base, components, utilities;\n@layer base {\n  *, *::before, *::after {\n    box-sizing: border-box;\n  }\n  body {\n    margin: 0;\n    font-family: system-ui;\n  }\n}\n@layer components {\n  .btn {\n    display: inline-flex;\n    gap: 0.5rem;\n    padding: 0.5rem 1.25rem;\n    border-radius: 6px;\n    font-weight: 500;\n  }\n}"
+    ]
+  },
+  bash: {
+    easy: [
+      "echo \"Hello, World!\"",
+      "ls -la ~/.config",
+      "mkdir -p src/components src/utils src/styles",
+      "grep -r \"TODO\" . --include=\"*.js\"",
+      "find . -name \"*.log\" -delete",
+      "chmod +x deploy.sh && ./deploy.sh",
+      "cat /etc/hosts | grep localhost"
+    ],
+    medium: [
+      "#!/bin/bash\nset -euo pipefail\n\nfor file in *.jpg; do\n  base=\"${file%.jpg}\"\n  echo \"Processing: $file\"\n  cp \"$file\" \"out/${base}_copy.jpg\"\ndone",
+      "backup() {\n  local src=\"$1\"\n  local dst=\"$2\"\n  local stamp\n  stamp=$(date +%Y%m%d_%H%M%S)\n  tar -czf \"${dst}/backup_${stamp}.tar.gz\" \"$src\"\n  echo \"Backup saved\"\n}",
+      "PID=$(lsof -ti :3000)\nif [ -n \"$PID\" ]; then\n  kill -9 \"$PID\"\n  echo \"Killed PID: $PID\"\nelse\n  echo \"Port 3000 is free\"\nfi",
+      "git log --oneline \\\n  --graph \\\n  --decorate \\\n  --all \\\n  | head -20"
+    ],
+    hard: [
+      "#!/bin/bash\nset -euo pipefail\n\ndeploy() {\n  local env=\"${1:-staging}\"\n  echo \"Deploying to $env...\"\n  git pull origin main\n  npm ci --production\n  npm run build\n  echo \"Deploy complete: $(date)\"\n}\n\ndeploy \"$@\"",
+      "watch_logs() {\n  local service=\"$1\"\n  journalctl -u \"$service\" -f \\\n    | while IFS= read -r line; do\n      if echo \"$line\" | grep -q \"ERROR\"; then\n        echo \"[ERR] $line\"\n      elif echo \"$line\" | grep -q \"WARN\"; then\n        echo \"[WRN] $line\"\n      else\n        echo \"$line\"\n      fi\n    done\n}"
+    ]
+  }
+};
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+var cfg = { lang: 'js', mode: 30, diff: 'easy' };
+var state = {
+  snippets: [], idx: 0, charIdx: 0,
+  correctChars: 0, totalChars: 0, errors: 0,
+  missedMap: {}, wpmHistory: [],
+  startTime: null, timeLeft: 30,
+  timerInterval: null, wpmInterval: null,
+  snippetsCompleted: 0, active: false
+};
+
+// ══════════════════════════════════════════
+// MENU
+// ══════════════════════════════════════════
+function selectOpt(group, btn) {
+  var btns = document.querySelectorAll('#' + group + '-group .option-btn');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('selected');
+  btn.classList.add('selected');
+  cfg[group] = btn.getAttribute('data-val');
+}
+
+function showMenu() {
+  showScreen('menu');
+  renderLeaderboard();
+}
+
+function renderLeaderboard() {
+  var scores = getScores();
+  var el = document.getElementById('lb-list');
+  if (!scores.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:0.78rem;">No scores yet. Be the first!</div>';
+    return;
+  }
+  var html = '';
+  var top = scores.slice(0, 5);
+  for (var i = 0; i < top.length; i++) {
+    var s = top[i];
+    html += '<div class="lb-row">' +
+      '<span class="lb-rank">' + (i + 1) + '</span>' +
+      '<span class="lb-name">' + s.diff + ' &middot; ' + s.mode + 's</span>' +
+      '<span class="lb-lang">' + s.lang.toUpperCase() + '</span>' +
+      '<span class="lb-score">' + s.wpm + ' WPM</span>' +
+      '</div>';
+  }
+  el.innerHTML = html;
+}
+
+// ══════════════════════════════════════════
+// GAME START
+// ══════════════════════════════════════════
+function startGame() {
+  var pool = (SNIPPETS[cfg.lang] && SNIPPETS[cfg.lang][cfg.diff])
+    ? SNIPPETS[cfg.lang][cfg.diff].slice()
+    : SNIPPETS.js.easy.slice();
+  shuffle(pool);
+  state = {
+    snippets: pool, idx: 0, charIdx: 0,
+    correctChars: 0, totalChars: 0, errors: 0,
+    missedMap: {}, wpmHistory: [],
+    startTime: null, timeLeft: parseInt(cfg.mode, 10),
+    timerInterval: null, wpmInterval: null,
+    snippetsCompleted: 0, active: true
+  };
+  showScreen('game');
+  renderSnippet();
+  focusInput();
+  startTimer();
+}
+
+function retryGame() { startGame(); }
+
+// ══════════════════════════════════════════
+// TIMER
+// ══════════════════════════════════════════
+function startTimer() {
+  var total = parseInt(cfg.mode, 10);
+  var arc = document.getElementById('timer-arc');
+  var circum = 138.2;
+  state.startTime = Date.now();
+
+  state.timerInterval = setInterval(function() {
+    state.timeLeft--;
+    document.getElementById('stat-time').textContent = state.timeLeft;
+    arc.style.strokeDashoffset = circum * (1 - state.timeLeft / total);
+    if (state.timeLeft <= 5) arc.style.stroke = 'var(--danger)';
+    if (state.timeLeft <= 0) endGame();
+  }, 1000);
+
+  state.wpmInterval = setInterval(function() {
+    var elapsed = (Date.now() - state.startTime) / 60000;
+    var wpm = elapsed > 0 ? Math.round(state.correctChars / 5 / elapsed) : 0;
+    state.wpmHistory.push(wpm);
+    updateStats();
+  }, 1000);
+}
+
+// ══════════════════════════════════════════
+// RENDER SNIPPET
+// ══════════════════════════════════════════
+function renderSnippet() {
+  var snip = state.snippets[state.idx % state.snippets.length];
+  document.getElementById('snip-lang-tag').textContent = cfg.lang;
+  var el = document.getElementById('snippet-display');
+  var html = '';
+  for (var i = 0; i < snip.length; i++) {
+    var ch = snip[i];
+    var cls = i === 0 ? 'ch cursor' : 'ch pending';
+    var disp;
+    if (ch === '\n') disp = '&#8629;\n';
+    else if (ch === ' ') disp = '&nbsp;';
+    else if (ch === '<') disp = '&lt;';
+    else if (ch === '>') disp = '&gt;';
+    else if (ch === '&') disp = '&amp;';
+    else disp = ch;
+    html += '<span class="' + cls + '" data-i="' + i + '">' + disp + '</span>';
+  }
+  el.innerHTML = html;
+  state.charIdx = 0;
+  document.getElementById('hidden-input').value = '';
+}
+
+// ══════════════════════════════════════════
+// INPUT HANDLER
+// ══════════════════════════════════════════
+document.getElementById('hidden-input').addEventListener('keydown', function(e) {
+  if (!state.active) return;
+  var snip = state.snippets[state.idx % state.snippets.length];
+  var expected = snip[state.charIdx];
+  var spans = document.querySelectorAll('#snippet-display .ch');
+
+  if (e.key === 'Backspace') {
+    e.preventDefault();
+    if (state.charIdx > 0) {
+      state.charIdx--;
+      spans[state.charIdx].className = 'ch cursor';
+      if (state.charIdx + 1 < spans.length) {
+        spans[state.charIdx + 1].className = 'ch pending';
+      }
+    }
+    return;
+  }
+
+  if (e.key.length > 1 && e.key !== 'Enter') return;
+  e.preventDefault();
+
+  var typed = e.key === 'Enter' ? '\n' : e.key;
+  state.totalChars++;
+
+  if (typed === expected) {
+    spans[state.charIdx].className = 'ch correct';
+    state.correctChars++;
+    state.charIdx++;
+
+    if (state.charIdx >= snip.length) {
+      state.snippetsCompleted++;
+      document.getElementById('stat-snip').textContent = state.snippetsCompleted;
+      state.idx++;
+      if (state.idx >= state.snippets.length) {
+        shuffle(state.snippets);
+        state.idx = 0;
+      }
+      renderSnippet();
+      return;
+    }
+
+    spans[state.charIdx].className = 'ch cursor';
+    spans[state.charIdx].scrollIntoView({ block: 'nearest' });
+  } else {
+    spans[state.charIdx].className = 'ch wrong cursor';
+    state.errors++;
+    var key = expected === '\n' ? 'Enter' : expected === ' ' ? 'Space' : expected;
+    state.missedMap[key] = (state.missedMap[key] || 0) + 1;
+    var box = document.getElementById('snippet-box');
+    box.classList.remove('shake');
+    void box.offsetWidth;
+    box.classList.add('shake');
+  }
+
+  updateStats();
+  updateProgress();
+});
+
+function focusInput() {
+  document.getElementById('hidden-input').focus();
+}
+
+document.getElementById('snippet-box').addEventListener('click', focusInput);
+
+// ══════════════════════════════════════════
+// STATS
+// ══════════════════════════════════════════
+function updateStats() {
+  var elapsed = state.startTime ? (Date.now() - state.startTime) / 60000 : 0;
+  var wpm = elapsed > 0 ? Math.round(state.correctChars / 5 / elapsed) : 0;
+  var cpm = elapsed > 0 ? Math.round(state.correctChars / elapsed) : 0;
+  var acc = state.totalChars > 0 ? Math.round((state.correctChars / state.totalChars) * 100) : 100;
+  document.getElementById('stat-wpm').textContent = wpm;
+  document.getElementById('stat-cpm').textContent = cpm;
+  document.getElementById('stat-acc').textContent = acc + '%';
+  document.getElementById('stat-acc').parentElement.className = 'stat-pill' + (acc < 90 ? ' danger' : '');
+}
+
+function updateProgress() {
+  var snip = state.snippets[state.idx % state.snippets.length];
+  var pct = (state.charIdx / snip.length) * 100;
+  document.getElementById('prog-fill').style.width = pct + '%';
+}
+
+// ══════════════════════════════════════════
+// SKIP / QUIT
+// ══════════════════════════════════════════
+function skipSnippet() {
+  state.idx++;
+  if (state.idx >= state.snippets.length) {
+    shuffle(state.snippets);
+    state.idx = 0;
+  }
+  renderSnippet();
+  focusInput();
+}
+
+// ══════════════════════════════════════════
+// END GAME
+// ══════════════════════════════════════════
+function endGame() {
+  state.active = false;
+  clearInterval(state.timerInterval);
+  clearInterval(state.wpmInterval);
+
+  var elapsed = state.startTime ? (Date.now() - state.startTime) / 60000 : 1;
+  var wpm = Math.round(state.correctChars / 5 / elapsed);
+  var cpm = Math.round(state.correctChars / elapsed);
+  var acc = state.totalChars > 0 ? Math.round((state.correctChars / state.totalChars) * 100) : 100;
+
+  saveScore({ wpm: wpm, acc: acc, lang: cfg.lang, diff: cfg.diff, mode: cfg.mode });
+
+  var grade, label;
+  if (wpm >= 120)      { grade = 'S';  label = 'Legendary Coder'; }
+  else if (wpm >= 90)  { grade = 'A+'; label = 'Code Wizard'; }
+  else if (wpm >= 70)  { grade = 'A';  label = 'Senior Dev Energy'; }
+  else if (wpm >= 50)  { grade = 'B';  label = 'Getting Fluent'; }
+  else if (wpm >= 30)  { grade = 'C';  label = 'Keep Practicing'; }
+  else                 { grade = 'D';  label = 'Just Getting Started'; }
+
+  document.getElementById('res-grade').textContent = grade;
+  document.getElementById('res-label').textContent = label;
+  document.getElementById('res-wpm').textContent = wpm;
+  document.getElementById('res-acc').textContent = acc + '%';
+  document.getElementById('res-cpm').textContent = cpm;
+  document.getElementById('res-snips').textContent = state.snippetsCompleted;
+
+  // WPM chart
+  var bars = document.getElementById('wpm-chart-bars');
+  var hist = state.wpmHistory.length ? state.wpmHistory : [0];
+  var maxW = 1;
+  for (var i = 0; i < hist.length; i++) { if (hist[i] > maxW) maxW = hist[i]; }
+  var bhtml = '';
+  for (var j = 0; j < hist.length; j++) {
+    var h = Math.max(2, Math.round((hist[j] / maxW) * 60));
+    bhtml += '<div class="chart-bar" style="height:' + h + 'px" title="' + hist[j] + ' WPM"></div>';
+  }
+  bars.innerHTML = bhtml;
+
+  // Missed chars
+  var missedArr = [];
+  var mk = Object.keys(state.missedMap);
+  for (var m = 0; m < mk.length; m++) {
+    missedArr.push([mk[m], state.missedMap[mk[m]]]);
+  }
+  missedArr.sort(function(a, b) { return b[1] - a[1]; });
+  missedArr = missedArr.slice(0, 10);
+
+  var ml = document.getElementById('missed-list');
+  if (missedArr.length) {
+    var mhtml = '';
+    for (var n = 0; n < missedArr.length; n++) {
+      mhtml += '<span class="missed-char"><code>' + missedArr[n][0] + '</code>' +
+        '<span class="mc-count">&times;' + missedArr[n][1] + '</span></span>';
+    }
+    ml.innerHTML = mhtml;
+  } else {
+    ml.innerHTML = '<span style="color:var(--muted);font-size:0.78rem;">Perfect! No mistakes.</span>';
+  }
+
+  showScreen('results');
+}
+
+// ══════════════════════════════════════════
+// LEADERBOARD
+// ══════════════════════════════════════════
+function getScores() {
+  try {
+    var raw = localStorage.getItem('codetyper_scores');
+    return raw ? JSON.parse(raw) : [];
+  } catch(e) { return []; }
+}
+
+function saveScore(s) {
+  var scores = getScores();
+  scores.push(s);
+  scores.sort(function(a, b) { return b.wpm - a.wpm; });
+  try {
+    localStorage.setItem('codetyper_scores', JSON.stringify(scores.slice(0, 20)));
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════
+function shuffle(arr) {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+  return arr;
+}
+
+function showScreen(name) {
+  var screens = document.querySelectorAll('.screen');
+  for (var i = 0; i < screens.length; i++) screens[i].classList.remove('active');
+  document.getElementById('screen-' + name).classList.add('active');
+}
+
+// INIT
+renderLeaderboard();
+</script>
+</body>
+</html>
